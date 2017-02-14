@@ -34,41 +34,35 @@ module Client =
 
 type Headers = (string * string) list
 
-type Request = {
+type FesterRequest = {
     Verb : HttpMethod
     Url : string
     Headers : Headers
     Body : string Option
     Client : FesterClient}
 
-type ResponseWithException = {
-    HttpResponse : HttpWebResponse
-    Exception : Option<exn>}
-
 type SuccessfulResponse<'resp> = {
-    HttpResponse : HttpWebResponse
+    HttpResponse : HttpResponseMessage
     Content : 'resp}
 
-type FailedResponse = ResponseWithException
-
-type Response<'resp> = 
+type FesterResponse<'resp> = 
     | Success of SuccessfulResponse<'resp>
-    | Failed of FailedResponse
+    | Failed of HttpResponseMessage
 
 
 module Request = 
 
-    let private methodWithBody (verb:HttpMethod) (url:string) (client:FesterClient) : Request = 
+    let private methodWithBody (verb:HttpMethod) (url:string) (client:FesterClient) : FesterRequest = 
         {Verb=verb; Url=url; Headers=[]; Body=None; Client=client}
 
-    let Get : string -> FesterClient -> Request = methodWithBody HttpMethod.Get
-    let Post : string -> FesterClient -> Request = methodWithBody HttpMethod.Post
-    let Put : string -> FesterClient -> Request  = methodWithBody HttpMethod.Put
-    let Delete : string -> FesterClient -> Request  = methodWithBody HttpMethod.Delete
-    let Body<'a> (ob:'a) (req:Request) : Request = 
+    let Get : string -> FesterClient -> FesterRequest = methodWithBody HttpMethod.Get
+    let Post : string -> FesterClient -> FesterRequest = methodWithBody HttpMethod.Post
+    let Put : string -> FesterClient -> FesterRequest  = methodWithBody HttpMethod.Put
+    let Delete : string -> FesterClient -> FesterRequest  = methodWithBody HttpMethod.Delete
+    let Body<'a> (ob:'a) (req:FesterRequest) : FesterRequest = 
         {req with Body=Some(req.Client.Serializer.Serialize ob)}
         
-    let Header ((key:string),(value:string)) (req:Request) : Request = 
+    let Header ((key:string),(value:string)) (req:FesterRequest) : FesterRequest = 
         {req with Headers = (req.Headers |> List.append [key,value])}
 
     let url root path = sprintf "%s/%s" root path
@@ -81,8 +75,9 @@ module Request =
             | [] -> col
             | _ -> createHeaderCollection col tail
 
-    let deserialize<'a> req str = 
-        req.Client.Serializer.Deserialize<'a> str
+    let private deserialize<'a> req (content:HttpContent) = 
+        (content.ReadAsStringAsync().Result)
+        |> req.Client.Serializer.Deserialize<'a> 
         
     let rec removeTrailingAndLeadingSlash (str:string) = 
         match str.Trim() with
@@ -130,7 +125,7 @@ module Request =
         | None -> ""
         | Some b -> b
 
-    let private createRequest (request:Request) = 
+    let private createRequest (request:FesterRequest) = 
         let webRequest = new HttpRequestMessage(request.Verb, request.Url)
         webRequest.Content <- new StringContent((request |> getContent)
                                                 ,Encoding.UTF8
@@ -149,30 +144,26 @@ module Request =
     let private getResponseFromStream (r:HttpWebResponse) = 
         (new StreamReader(r.GetResponseStream())).ReadToEnd()
 
-    let private getHttpResponse (request:Request) : HttpResponseMessage = 
+    let private getHttpResponse (request:FesterRequest) : HttpResponseMessage = 
         let asyncResult = (createRequest request)
                           |> request.Client.HttpClient.SendAsync
         asyncResult.Result        
 
-    let Raw (request:Request) = 
-        request 
-        |> getHttpResponse
-        |> fun r -> r.Content
+    let Raw (request:FesterRequest) = 
+        (request |> getHttpResponse).Content        
 
-    let As<'resp> (request:Request) =
+    let As<'resp> (request:FesterRequest) =
         request |> Raw |>  deserialize<'resp> request
 
-    let GetResponse<'resp> (request:Request) : Response<'resp> = 
+    let GetResponse<'resp> (request:FesterRequest) : FesterResponse<'resp> = 
         let response = request |> getHttpResponse
-        match response.HttpResponse.StatusCode with
+        match response.StatusCode with
         | HttpStatusCode.OK -> 
-            Success {HttpResponse=response.HttpResponse; 
-                     Content= (response.HttpResponse |> getResponseFromStream |> deserialize<'resp> request)}
+            Success {HttpResponse=response; 
+                     Content= (response.Content |> deserialize<'resp> request)}
         | _ ->
             Failed response
     
-    let Cookie (cookie:string) (request:Request) =
+    let Cookie (cookie:string) (request:FesterRequest) =
         request |> Header ("Cookie", cookie)
-
-    
-    
+       
