@@ -15,9 +15,11 @@ type ISerializer =
     abstract member Deserialize<'a> : string -> 'a
     abstract member ContentType : string
 
+type SendRequest =  (HttpRequestMessage -> Task<HttpResponseMessage>)
+
 type FesterClient(serializer, sendRequest) = 
     member this.Serializer = serializer
-    member this.SendRequest : (HttpRequestMessage -> Task<HttpResponseMessage>) = sendRequest
+    member this.SendRequest : SendRequest = sendRequest
 
 
 module Client = 
