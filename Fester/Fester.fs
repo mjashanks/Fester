@@ -8,28 +8,31 @@ open System.Text
 open System.Reflection
 open System
 open System.Net.Http.Headers
+open System.Threading.Tasks
 
 type ISerializer = 
     abstract member Serialize<'a> : 'a -> string
     abstract member Deserialize<'a> : string -> 'a
     abstract member ContentType : string
 
-type FesterClient(serializer:ISerializer, baseUrl:string Option, createHttpClient) = 
+type FesterClient(serializer, sendRequest) = 
     member this.Serializer = serializer
-    member this.HttpClient : HttpClient = 
-        let client : HttpClient = createHttpClient baseUrl   
-        client.DefaultRequestHeaders
-              .Accept
-              .Add(new MediaTypeWithQualityHeaderValue(serializer.ContentType))
-        client
+    member this.SendRequest : (HttpRequestMessage -> Task<HttpResponseMessage>) = sendRequest
+
 
 module Client = 
-    let private createHttpClient url =
+    let private getSendRequest url contentType = 
         let client = new HttpClient()
         client.BaseAddress <- new Uri(match url with | None -> "" | Some s -> s)
-        client
-    let Create serializer baseUrl =
-        new FesterClient(serializer, baseUrl, createHttpClient)
+        client.DefaultRequestHeaders
+                .Accept
+                .Add(new MediaTypeWithQualityHeaderValue(contentType))
+        fun (r:HttpRequestMessage) -> r |> client.SendAsync
+    
+    let Create (serializer:ISerializer) (baseUrl:string Option) =
+        let sendRequest = getSendRequest baseUrl (serializer.ContentType)
+        new FesterClient(serializer, sendRequest)
+
 
 
 type Headers = (string * string) list
@@ -146,7 +149,7 @@ module Request =
 
     let private getHttpResponse (request:FesterRequest) : HttpResponseMessage = 
         let asyncResult = (createRequest request)
-                          |> request.Client.HttpClient.SendAsync
+                          |> request.Client.SendRequest
         asyncResult.Result        
 
     let Raw (request:FesterRequest) = 

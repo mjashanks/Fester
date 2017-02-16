@@ -1,10 +1,11 @@
 namespace Fester.Tests
-open Xunit;
 
+open Xunit;
+open Fester;
 
 // see example explanation on xUnit.net website:
 // https://xunit.github.io/docs/getting-started-dotnet-core.html
-module UnitTest1 =
+module Tests =
 
     let add x y = x + y
 

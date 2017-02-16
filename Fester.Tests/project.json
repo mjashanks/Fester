@@ -27,7 +27,8 @@
         "compilerName": "fsc",
         "compile": {
             "includeFiles": [
-                "UnitTest1.fs"
+                "TestHelpers.fs",
+                "Tests.fs"
             ]
         },
         "copyToOutput": {
