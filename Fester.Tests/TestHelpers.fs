@@ -42,7 +42,8 @@ module Helpers =
                     response
             )
 
-    let CreateTestClient<'resp> (interceptor) = 
-        let sendRequest = getSendRequest<'resp> interceptor
+    let TestRequest<'resp> onSendMessage = 
+        let sendRequest = getSendRequest<'resp> (defaultInterceptor onSendMessage)
         new FesterClient(serializer, sendRequest)
+
         
