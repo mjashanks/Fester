@@ -20,7 +20,7 @@ type SendRequest =  (HttpRequestMessage -> Task<HttpResponseMessage>)
 type FesterClient(serializer, sendRequest) = 
     member this.Serializer = serializer
     member this.SendRequest : SendRequest = sendRequest
-
+    
 
 module Client = 
     let private getSendRequest url contentType = 
