@@ -9,14 +9,13 @@ open System.Net.Http
 // https://xunit.github.io/docs/getting-started-dotnet-core.html
 module Tests =
 
-    let add x y = x + y
+    let assertMethodIs method (req:HttpRequestMessage) = 
+        Assert.Equal(method, req.Method.Method)
 
     [<Fact>]
-    let ``Get creates message with GET verb`` () =
-        TestRequest<string> 
-            (fun (req:HttpRequestMessage) ->
-                Assert.True(req.Method.Method = "GET"))
-        |> Get "some/path" |> Raw |> ignore
+    let ``Get creates message with GET verb`` () =   
+        assertMethodIs "GET"     
+        |> TestRequest<string> |> Get "some/path" |> Raw |> ignore
 
 
 
